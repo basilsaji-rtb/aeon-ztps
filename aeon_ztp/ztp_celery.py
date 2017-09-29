@@ -10,7 +10,10 @@ import os
 import socket
 import requests
 import json
-
+from aeon.eos.device import Device as EosDevice
+from aeon.cumulus.device import Device as CumulusDevice
+from aeon.nxos.device import Device as NxosDevice
+from aeon.exceptions import CommandError, TimeoutError
 from celery import Celery
 
 __all__ = ['ztp_bootstrapper']
@@ -234,3 +237,49 @@ def ztp_finalizer(os_name, target):
             return rc, _stderr
     finally:
         log.handlers.pop()
+
+
+@celery.task
+def retry_ztp(target=None, nos=None, user='admin', password='admin'):
+    cumulus_lease_file = '/var/lib/dhcp/dhclient.eth0.leases'
+    dev_table = {
+        'eos': {
+            'dev_obj': EosDevice,
+            'cmds': ['write erase now', 'reload now']
+        },
+        'cumulus': {
+            'dev_obj': CumulusDevice,
+            'cmds': [
+                "sudo su",
+                "sed -i '/vrf mgmt/d' /etc/network/interfaces",
+                'ztp -R',
+                'reboot'
+            ],
+            'virt_cmds': [
+                "sudo ztp -v -r $(cat %s | grep 'cumulus-provision-url'| tail -1 | cut -f2 -d\\\")" % cumulus_lease_file
+            ]
+        },
+        'nxos': {
+            'dev_obj': NxosDevice,
+            'cmds': ['write erase', 'reload']
+        }
+    }
+    if not any(nos.lower() in x for x in dev_table):
+        raise ValueError('%s not in list of supported NOSs')
+    d = dev_table[nos.lower()]
+    dev = d['dev_obj'](target, user=user, passwd=password)
+
+    try:
+        # CumulusVX doesn't always boot into ZTP mode without network errors
+        # Use different retry commands for CVX
+        if dev.facts['os_name'] == 'cumulus' and dev.facts['virtual']:
+            ok, output = dev.api.execute(d['virt_cmds'])
+        else:
+            ok, output = dev.api.execute(d['cmds'])
+    except CommandError as e:
+        if 'IncompleteRead' in e[0]:
+            pass
+        return False, e
+    except TimeoutError as e:
+        return False, 'Device %s unreachable' % target
+    return ok, output
