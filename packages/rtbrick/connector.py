@@ -1,0 +1,110 @@
+# Copyright 2014-present, Apstra, Inc. All rights reserved.
+#
+# This source code is licensed under End User License Agreement found in the
+# LICENSE file at http://www.apstra.com/community/eula
+
+import socket
+
+import paramiko
+import time
+from paramiko.ssh_exception import NoValidConnectionsError
+from aeon.exceptions import LoginNotReadyError, ConfigError, CommandError
+
+
+__all__ = ['Connector', 'Executor']
+
+class Executor(object):
+    def __init__(self, host, user="admin", password="admin"):
+        self.host = host
+        self.port = 22
+        self.user = user
+        self.password = password
+
+        self._client = paramiko.SSHClient()
+        self._client.load_system_host_keys()
+        self._client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        print"TEST"
+
+    def open(self):
+        buff = ''
+        try:
+            self._client.connect(
+                self.host, port=self.port,
+                username=self.user, password=self.password)
+            self._chan = self._client.invoke_shell()
+            self._chan.send("sudo su -\n"+"admin\n")
+            time.sleep(1)
+            self._chan.send("PS1='~##~ '\nls\n")
+            time.sleep(1)
+            while not buff.endswith("~##~ "):
+                resp = self._chan.recv(1024)
+                buff += resp
+
+        except Exception as e:
+            raise
+
+    def execute(self, cmd):
+        buff = ''
+        try:
+            self._chan.send(cmd+"\n")
+        except:
+            self.open()
+            self._chan.send(cmd+"\n")
+        while not buff.endswith("~##~ "):
+            resp = self._chan.recv(1024)
+            buff += resp
+        return buff[len(cmd)+4:-6]
+
+    def execute_cmd(self, cmd):
+        try:
+            stdin, stdout, stderr = self._client.exec_command(cmd)
+            exit_code = stdout.channel.recv_exit_status()
+        except:
+            self.open()
+            stdin, stdout, stderr = self._client.exec_command(cmd)
+            exit_code = stdout.channel.recv_exit_status()
+        return stdout.read()
+
+
+class Connector(object):
+    def __init__(self, hostname, **kwargs):
+        self.hostname = hostname
+        self.port = 22
+        self.user = kwargs.get('user')
+        self.passwd = kwargs.get('passwd')
+
+        self._client = paramiko.SSHClient()
+        self._client.load_system_host_keys()
+        self._client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        self.open()
+
+    def open(self):
+        try:
+            self._client.connect(
+                self.hostname, port=self.port,
+                username=self.user, password=self.passwd)
+
+        except Exception as e:
+            raise
+
+    def close(self):
+        self._client.close()
+
+    def execute(self, commands, stop_on_error=True):
+        results = []
+        exit_code_collector = 0
+
+        for cmd in commands:
+            stdin, stdout, stderr = self._client.exec_command(cmd)
+            exit_code = stdout.channel.recv_exit_status()
+            exit_code_collector |= exit_code
+
+            results.append(dict(cmd=cmd, exit_code=exit_code,
+                                stdout=stdout.read(),
+                                stderr=stderr.read()))
+
+            if stop_on_error is True and exit_code != 0:
+                return False, results
+
+        return bool(0 == exit_code_collector), results

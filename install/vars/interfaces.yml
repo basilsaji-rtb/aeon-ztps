@@ -1,12 +1,18 @@
 interfaces:
-    eth0:
-        dhcp: true
-
-vagrant_interfaces:
-    eth0:
-        dhcp: true
     eth1:
-        address: 192.168.59.254/24
-        gateway: 192.168.59.2
-        metric: 10
-        dns_nameservers: 8.8.8.8
+        address: 172.16.240.2
+        netmask: 255.255.255.0
+        network: 172.16.240.0
+        gateway: 172.16.240.1
+        lease_start: 172.16.240.10
+        lease_end: 172.16.240.20
+        dns_nameserver: 8.8.8.8
+
+dhcp_config:
+    interface: eth1
+    enable: true
+    hosts:
+        - name: "leaf1"
+          ip_address: "172.16.240.6"
+          image: "rtbrick-onl-leaf-installer"
+          macaddr: "cc:37:ab:e0:a3:ed"

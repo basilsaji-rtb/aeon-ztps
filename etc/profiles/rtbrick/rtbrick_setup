@@ -1,0 +1,32 @@
+#!/bin/bash
+
+while getopts t:s:u:p:l:f: option
+do
+        case "${option}"
+        in
+                t) TARGET=$OPTARG;;
+                s) SERVER=$OPTARG;;
+                u) USER=$OPTARG;;
+                p) PASSWD=$OPTARG;;
+                l) LOGFILE=$OPTARG;;
+                f) FACTS=$OPTARG;;
+        esac
+done
+
+echo "TESTING TARGET:$TARGET SERVER:$SERVER USER:  $USER PASSWD:$PASSWD FACTS: $FACTS"
+
+cd /root/program_configs
+
+if [ -d fwdd ]; then
+    cd fwdd
+    curl -i -H "Content-Type: application/json" -X POST -d @config.ifl.object.json http://10.0.3.10:2002/bds/object/add
+    curl -i -H "Content-Type: application/json" -X POST -d @config.ifa.object.json http://10.0.3.10:2002/bds/object/add
+    cd ..
+fi
+
+if [ -d bgp ]; then
+    cd bgp
+    for file in *.json; do
+        curl -i -H "Content-Type: application/json" -X POST -d @$file http://10.0.3.10:2002/bds/object/add
+    done
+fi

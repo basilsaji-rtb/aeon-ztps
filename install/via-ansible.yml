@@ -26,6 +26,7 @@
     - action: setup
 
   tasks:
+    - debug: var=TopDir
     - name: Reboot
       shell: sleep 2 && shutdown -r now
       async: 1

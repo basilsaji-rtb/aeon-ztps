@@ -120,3 +120,8 @@
   with_items:
      - /var/log/syslog
      - /var/log/uwsgi/app/aeon-ztp.log
+
+- name: copy rtbrick python libs
+  copy: src="{{ TopDir }}/packages/rtbrick" dest=/usr/local/lib/python2.7/dist-packages/aeon
+        owner=nobody mode=644
+

@@ -9,13 +9,13 @@
   template:
     src: dhcpd.conf
     dest: /etc/dhcp/dhcpd.conf
-  when: DHCPS_enable == True
+  #  when: DHCPS_enable == True
 
 - name: Install Example DHCP configuration file
   copy:
     src: aeon_ztps_example_dhcpd.conf
     dest: /etc/dhcp/aeon_ztps_example_dhcpd.conf
-  when: DHCPS_enable == False
+  #  when: DHCPS_enable == False
 
 - name: Install DHCP reset script
   copy:
@@ -28,11 +28,11 @@
     name: isc-dhcp-server
     enabled: yes
     state: started
-  when: DHCPS_enable == True
+  #  when: DHCPS_enable == True
 
 - name: Disable / stop DHCP service
   service:
     name: isc-dhcp-server
     enabled: no
     state: stopped
-  when: DHCPS_enable == False
+  #  when: DHCPS_enable == False
